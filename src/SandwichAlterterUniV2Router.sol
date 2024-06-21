@@ -11,6 +11,34 @@ import { IUniswapV2Pair } from "./interfaces/IUniswapV2Pair.sol";
 // Libraries
 import { SafeTransferLib } from "../lib/solady/src/utils/SafeTransferLib.sol";
 
+//                                                            _
+//                                                           //
+//                                                          //
+//                                          _______________//__
+//                                        .(______________//___).
+//                                        |              /      |
+//                                        |. . . . . . . / . . .|
+//                                        \ . . . . . ./. . . . /
+//                                         |           / ___   |
+//                     _.---._             |::......./../...\.:|
+//                 _.-~       ~-._         |::::/::\::/:\::::::|
+//             _.-~               ~-._     |::::\::/::::::X:/::|
+//         _.-~                       ~---.;:::::::/::\::/:::::|
+//     _.-~                                 ~\::::::n::::::::::|
+//  .-~                                    _.;::/::::a::::::::/
+//  :-._                               _.-~ ./::::::::d:::::::|
+//  `-._~-._                   _..__.-~ _.-~|::/::::::::::::::|
+//   /  ~-._~-._              / .__..--~----.YWWWWWWWWWWWWWWWP'
+//  \_____(_;-._\.        _.-~_/       ~).. . \
+//     /(_____  \`--...--~_.-~______..-+_______)
+//   .(_________/`--...--~/    _/           /\
+//  /-._     \_     (___./_..-~__.....__..-~./
+//  `-._~-._   ~\--------~  .-~_..__.-~ _.-~
+//      ~-._~-._ ~---------'  / .__..--~
+//          ~-._\.        _.-~_/
+//              \`--...--~_.-~
+//               `--...--~
+//
 /// @title SandwichAlterterUniV2Router
 /// @notice A uniswap V2 router that detects sandwich attacks and mints an NFT when you get sandwiched
 contract SandwichAlterterUniV2Router is ERC721Enumerable {
