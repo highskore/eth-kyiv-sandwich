@@ -1,41 +1,77 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.25;
 
+// Contracts
+import { ERC721Enumerable } from "../lib/openzeppelin-contracts/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import { ERC721 } from "../lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
+
+// Interfaces
+import { IUniswapV2Pair } from "./interfaces/IUniswapV2Pair.sol";
+
 // Libraries
 import { SafeTransferLib } from "../lib/solady/src/utils/SafeTransferLib.sol";
 
-import { console2 } from "forge-std/src/console2.sol";
+/// @title SandwichAlterterUniV2Router
+/// @notice A uniswap V2 router that detects sandwich attacks and mints an NFT when you get sandwiched
+contract SandwichAlterterUniV2Router is ERC721Enumerable {
+    /*//////////////////////////////////////////////////////////////
+                                STRUCTS
+    //////////////////////////////////////////////////////////////*/
 
-// Interface for UniswapV2Pair
-interface IUniswapV2Pair {
-    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
-    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external;
-}
-
-contract SandwichAlterterUniV2Router {
-    address public immutable factory;
-
-    event SandwichDetected(address firstUser, address secondUser, uint256 lostAmount);
-    event PotentialSandwichCooking(uint256 block);
-    event PotentialSandwichs(PotentialSandwich[] sandwiches);
-
-    using SafeTransferLib for address;
-
-    constructor(address _factory) {
-        factory = _factory;
-    }
-
-    struct PotentialSandwich {
-        bool side; // false == buy, true == sell
+    /// @dev A struct holding information about ingredients in possible sandwich
+    struct SandwichIngredient {
+        // @dev Type of swap, true for buy, false for sell
+        bool side;
+        // @dev Amount of token0 in the pool before the swap
         uint256 reserve0;
+        // @dev Amount of token1 in the pool before the swap
         uint256 reserve1;
+        // @dev Address of the user who made the swap
         address user;
+        // @dev Amount sent to the pool
         uint256 amountIn;
+        // @dev Amount received from the pool
         uint256 amountOut;
     }
 
-    // Mapping of pool address to block height to array of potential sandwiches
-    mapping(address => mapping(uint256 => PotentialSandwich[])) public potentialSandwiches;
+    /*//////////////////////////////////////////////////////////////
+                               LIBRARIES
+    //////////////////////////////////////////////////////////////*/
+
+    using SafeTransferLib for address;
+
+    /*//////////////////////////////////////////////////////////////
+                               CONSTANTS
+    //////////////////////////////////////////////////////////////*/
+
+    // UniSwap V2 Factory address
+    address public immutable factory;
+
+    /*//////////////////////////////////////////////////////////////
+                                 EVENTS
+    //////////////////////////////////////////////////////////////*/
+
+    event SandwichDetected(address firstUser, address secondUser, uint256 lostAmount);
+
+    /*//////////////////////////////////////////////////////////////
+                              CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
+
+    constructor(address _factory) ERC721("Sandwich NFT", "SWNFT") {
+        factory = _factory;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                               VARIABLES
+    //////////////////////////////////////////////////////////////*/
+
+    // @dev Mapping to store potential sandwiches in a block
+    // @dev pool => block number => SandwichIngredient[]
+    mapping(address => mapping(uint256 => SandwichIngredient[])) public potentialSandwiches;
+
+    /*//////////////////////////////////////////////////////////////
+                               FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
     function swap(
         address tokenA,
@@ -57,7 +93,7 @@ contract SandwichAlterterUniV2Router {
         address to = msg.sender;
         IUniswapV2Pair(pool).swap(amount0Out, amount1Out, to, new bytes(0));
         potentialSandwiches[pool][block.number].push(
-            PotentialSandwich({
+            SandwichIngredient({
                 side: true,
                 reserve0: reserves[0],
                 reserve1: reserves[1],
@@ -68,31 +104,28 @@ contract SandwichAlterterUniV2Router {
         );
         // Check for sandwich
         if (potentialSandwiches[pool][block.number].length > 2) {
-            console2.log("Checking for sandwich");
             // First potential sandwich
-            PotentialSandwich memory first =
+            SandwichIngredient memory first =
                 potentialSandwiches[pool][block.number][potentialSandwiches[pool][block.number].length - 3];
             // Second potential sandwich
-            PotentialSandwich memory second =
+            SandwichIngredient memory second =
                 potentialSandwiches[pool][block.number][potentialSandwiches[pool][block.number].length - 2];
             // Check if the first and second trades are on the same side
             if (first.side == second.side && !second.side && first.amountIn == amountOut) {
-                console2.log("Top bun and meat found");
                 // Get reserves from first swap
                 (uint256 reserve0First, uint256 reserve1First) = (first.reserve0, first.reserve1);
                 // Get the potential amount in from the second swap using reservers from the first swap
                 uint256 potentialAmountIn = getAmountIn(second.amountOut, reserve0First, reserve1First);
-                console2.log("Potential amount in", potentialAmountIn);
-                console2.log("Second amount in", second.amountIn);
                 if (potentialAmountIn < second.amountIn) {
                     // It's a sandwich
                     emit SandwichDetected(first.user, second.user, second.amountIn - potentialAmountIn);
+                    // Mint NFT to the user who got sandwiched
+                    _mint(second.user, totalSupply() + 1);
                 }
             }
         }
     }
 
-    // Execute buy and check for sandwich
     function buy(
         address tokenA,
         address tokenB,
@@ -113,7 +146,7 @@ contract SandwichAlterterUniV2Router {
         address to = msg.sender;
         IUniswapV2Pair(pool).swap(amount0Out, amount1Out, to, new bytes(0));
         potentialSandwiches[pool][block.number].push(
-            PotentialSandwich({
+            SandwichIngredient({
                 side: false,
                 reserve0: reserves[0],
                 reserve1: reserves[1],
@@ -124,25 +157,23 @@ contract SandwichAlterterUniV2Router {
         );
         // Check for sandwich
         if (potentialSandwiches[pool][block.number].length > 2) {
-            console2.log("Checking for sandwich");
             // First potential sandwich
-            PotentialSandwich memory first =
+            SandwichIngredient memory first =
                 potentialSandwiches[pool][block.number][potentialSandwiches[pool][block.number].length - 3];
             // Second potential sandwich
-            PotentialSandwich memory second =
+            SandwichIngredient memory second =
                 potentialSandwiches[pool][block.number][potentialSandwiches[pool][block.number].length - 2];
             // Check if the first and second trades are on the same side
             if (first.side == second.side && second.side && first.amountOut == amountIn) {
-                console2.log("Top bun and meat found");
                 // Get reserves from first swap
                 (uint256 reserve0First, uint256 reserve1First) = (first.reserve0, first.reserve1);
                 // Get the potential amount out from the second swap using reservers from the first swap
                 uint256 potentialAmountOut = getAmountOut(second.amountIn, reserve0First, reserve1First);
-                console2.log("Potential amount out", potentialAmountOut);
-                console2.log("Second amount out", second.amountOut);
                 if (potentialAmountOut > second.amountOut) {
                     // It's a sandwich
                     emit SandwichDetected(first.user, second.user, potentialAmountOut - second.amountOut);
+                    // Mint NFT to the user who got sandwiched
+                    _mint(second.user, totalSupply() + 1);
                 }
             }
         }
