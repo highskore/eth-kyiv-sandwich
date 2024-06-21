@@ -101,5 +101,8 @@ contract SandwichAlterterUniV2RouterTest is Test {
 
         // Make sure that the balance of USDC has decreased axactly initialAmountOut
         assert(balanceBeforeUSDC - balanceAfterUSDC == initialAmountOut);
+
+        // Make sure NFT is minted to user
+        assert(router.balanceOf(user) == 1);
     }
 }
