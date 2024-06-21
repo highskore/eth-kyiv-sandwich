@@ -4,53 +4,83 @@ pragma solidity >=0.8.25 <0.9.0;
 import { Test } from "forge-std/src/Test.sol";
 import { console2 } from "forge-std/src/console2.sol";
 
-import { Foo } from "../src/Foo.sol";
+import { SandwichAlterterUniV2Router } from "../src/SandwichAlterterUniV2Router.sol";
 
-interface IERC20 {
-    function balanceOf(address account) external view returns (uint256);
-}
+import { IERC20 } from "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
-/// @dev If this is your first time with Forge, read this tutorial in the Foundry Book:
-/// https://book.getfoundry.sh/forge/writing-tests
 contract FooTest is Test {
-    Foo internal foo;
+    SandwichAlterterUniV2Router internal router;
+    IERC20 internal DAI;
+    IERC20 internal USDC;
+    address user;
+    address chef;
 
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
-        // Instantiate the contract-under-test.
-        foo = new Foo();
+        router = new SandwichAlterterUniV2Router(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f);
+        DAI = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+        USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+        user = address(0x7713974908Be4BEd47172370115e8b1219F4A5f0);
+        chef = address(0xD1668fB5F690C59Ab4B0CAbAd0f8C1617895052B);
+        vm.createSelectFork({ blockNumber: 20_141_164, urlOrAlias: "mainnet" });
+        // Prank to chef
+        vm.startPrank(chef);
+        // Approve DAI to router
+        IERC20(DAI).approve(address(router), 2 ** 256 - 1);
+        // Approve USDC to router
+        IERC20(USDC).approve(address(router), 2 ** 256 - 1);
+        // Prank to user
+        vm.startPrank(user);
+        // Approve DAI to router
+        IERC20(DAI).approve(address(router), 2 ** 256 - 1);
+        // Approve USDC to router
+        IERC20(USDC).approve(address(router), 2 ** 256 - 1);
+        // Label user and chef, DAI and USDC
+        vm.label(user, "user");
+        vm.label(chef, "chef");
+        vm.label(address(DAI), "DAI");
+        vm.label(address(USDC), "USDC");
+        vm.label(0xAE461cA67B15dc8dc81CE7615e0320dA1A9aB8D5, "DAIUSDC");
     }
 
-    /// @dev Basic test. Run it with `forge test -vvv` to see the console log.
-    function test_Example() external view {
-        console2.log("Hello World");
-        uint256 x = 42;
-        assertEq(foo.id(x), x, "value mismatch");
+    function test_Sandwich_Sell_Sell_Buy() public {
+        // Prank to chef
+        vm.startPrank(chef);
+
+        address[] memory path = new address[](2);
+        path[0] = address(DAI);
+        path[1] = address(USDC);
+        uint256 amountInChef1 = 50_000_000_000_000_000_000;
+        uint256 amountInUser1 = 10_000_000_000_000_000_000;
+
+        // Check amount out from DAI to USDC
+        (uint256[] memory amounts,) = router.getAmountsOut(amountInChef1, path);
+
+        // Call swap function
+        router.swap(path, amountInChef1, amounts[1]);
+
+        DAI.transfer(user, amountInUser1);
+
+        // Prank to user
+        vm.startPrank(user);
+
+        // Check amount out from DAI to USDC
+        (amounts,) = router.getAmountsOut(amountInUser1, path);
+
+        // Call swap function
+        router.swap(path, amountInUser1, amounts[1]);
+
+        // Prank to chef
+        vm.startPrank(chef);
+        path[1] = address(DAI);
+        path[0] = address(USDC);
+
+        // Check amount in from USDC to DAI
+        (amounts,) = router.getAmountsIn(amountInChef1, path);
+
+        // Call buy function
+        router.buy(path, amounts[0], amountInChef1);
     }
 
-    /// @dev Fuzz test that provides random values for an unsigned integer, but which rejects zero as an input.
-    /// If you need more sophisticated input validation, you should use the `bound` utility instead.
-    /// See https://twitter.com/PaulRBerg/status/1622558791685242880
-    function testFuzz_Example(uint256 x) external view {
-        vm.assume(x != 0); // or x = bound(x, 1, 100)
-        assertEq(foo.id(x), x, "value mismatch");
-    }
-
-    /// @dev Fork test that runs against an Ethereum Mainnet fork. For this to work, you need to set `API_KEY_ALCHEMY`
-    /// in your environment You can get an API key for free at https://alchemy.com.
-    function testFork_Example() external {
-        // Silently pass this test if there is no API key.
-        string memory alchemyApiKey = vm.envOr("API_KEY_ALCHEMY", string(""));
-        if (bytes(alchemyApiKey).length == 0) {
-            return;
-        }
-
-        // Otherwise, run the test against the mainnet fork.
-        vm.createSelectFork({ urlOrAlias: "mainnet", blockNumber: 16_428_000 });
-        address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-        address holder = 0x7713974908Be4BEd47172370115e8b1219F4A5f0;
-        uint256 actualBalance = IERC20(usdc).balanceOf(holder);
-        uint256 expectedBalance = 196_307_713.810457e6;
-        assertEq(actualBalance, expectedBalance);
-    }
+    function test_sandwitch_buy_buy_sell() public { }
 }
