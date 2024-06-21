@@ -37,27 +37,20 @@ contract SandwichAlterterUniV2Router {
     // Mapping of pool address to block height to array of potential sandwiches
     mapping(address => mapping(uint256 => PotentialSandwich[])) public potentialSandwiches;
 
-    function doSandwich() public {
-        // buy0 || sell0
-
-        // buy0 || sell0
-
-        // sell1 || buy
-    }
-
     function swap(
-        address[] calldata path,
+        address tokenA,
+        address tokenB,
         uint256 amountIn,
         uint256 amountOutMin
     )
         external
         returns (uint256[] memory amounts, uint256[] memory reserves)
     {
-        (amounts, reserves) = getAmountsOut(amountIn, path);
+        (amounts, reserves) = getAmountsOut(amountIn, tokenA, tokenB);
         require(amounts[amounts.length - 1] >= amountOutMin, "UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT");
-        address pool = pairFor(path[0], path[1]);
-        path[0].safeTransferFrom(msg.sender, pool, amounts[0]);
-        (address input, address output) = (path[0], path[1]);
+        address pool = pairFor(tokenA, tokenB);
+        tokenA.safeTransferFrom(msg.sender, pool, amounts[0]);
+        (address input, address output) = (tokenA, tokenB);
         (address token0,) = sortTokens(input, output);
         uint256 amountOut = amounts[1];
         (uint256 amount0Out, uint256 amount1Out) = input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
@@ -97,24 +90,23 @@ contract SandwichAlterterUniV2Router {
                 }
             }
         }
-        emit PotentialSandwichCooking(block.number);
-        emit PotentialSandwichs(potentialSandwiches[pool][block.number]);
     }
 
     // Execute buy and check for sandwich
     function buy(
-        address[] calldata path,
+        address tokenA,
+        address tokenB,
         uint256 amountOut,
         uint256 maxAmountIn
     )
         external
         returns (uint256[] memory amounts, uint256[] memory reserves)
     {
-        (amounts, reserves) = getAmountsIn(amountOut, path);
+        (amounts, reserves) = getAmountsIn(amountOut, tokenA, tokenB);
         require(amounts[0] <= maxAmountIn, "UniswapV2Router: EXCESSIVE_INPUT_AMOUNT");
-        address pool = pairFor(path[0], path[1]);
-        path[0].safeTransferFrom(msg.sender, pool, amounts[0]);
-        (address input, address output) = (path[0], path[1]);
+        address pool = pairFor(tokenA, tokenB);
+        tokenA.safeTransferFrom(msg.sender, pool, amounts[0]);
+        (address input, address output) = (tokenA, tokenB);
         (address token0,) = sortTokens(input, output);
         uint256 amountIn = amounts[0];
         (uint256 amount0Out, uint256 amount1Out) = input == token0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
@@ -154,8 +146,6 @@ contract SandwichAlterterUniV2Router {
                 }
             }
         }
-        emit PotentialSandwichCooking(block.number);
-        emit PotentialSandwichs(potentialSandwiches[pool][block.number]);
     }
 
     function getAmountOut(
@@ -194,16 +184,16 @@ contract SandwichAlterterUniV2Router {
 
     function getAmountsOut(
         uint256 amountIn,
-        address[] memory path
+        address srcToken,
+        address destToken
     )
         public
         view
         returns (uint256[] memory amounts, uint256[] memory reserves)
     {
-        require(path.length >= 2, "UniswapV2Library: INVALID_PATH");
-        amounts = new uint256[](path.length);
+        amounts = new uint256[](2);
+        (uint256 reserveIn, uint256 reserveOut) = getReserves(srcToken, destToken);
         amounts[0] = amountIn;
-        (uint256 reserveIn, uint256 reserveOut) = getReserves(path[0], path[1]);
         amounts[1] = getAmountOut(amounts[0], reserveIn, reserveOut);
         reserves = new uint256[](2);
         reserves[0] = reserveIn;
@@ -243,19 +233,17 @@ contract SandwichAlterterUniV2Router {
 
     function getAmountsIn(
         uint256 amountOut,
-        address[] memory path
+        address srcToken,
+        address destToken
     )
         public
         view
         returns (uint256[] memory amounts, uint256[] memory reserves)
     {
-        require(path.length >= 2, "UniswapV2Library: INVALID_PATH");
-        amounts = new uint256[](path.length);
-        amounts[amounts.length - 1] = amountOut;
-        (uint256 reserveIn, uint256 reserveOut) = getReserves(path[0], path[1]);
-        console2.log("Amounts1", amounts[1]);
+        amounts = new uint256[](2);
+        amounts[1] = amountOut;
+        (uint256 reserveIn, uint256 reserveOut) = getReserves(srcToken, destToken);
         amounts[0] = getAmountIn(amounts[1], reserveIn, reserveOut);
-        console2.log("Amounts", amounts[0]);
         reserves = new uint256[](2);
         reserves[0] = reserveIn;
         reserves[1] = reserveOut;

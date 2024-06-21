@@ -20,9 +20,9 @@ contract FooTest is Test {
         router = new SandwichAlterterUniV2Router(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f);
         DAI = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
         USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-        user = address(0x7713974908Be4BEd47172370115e8b1219F4A5f0);
+        user = address(0xA10c7CE4b876998858b1a9E12b10092229539400);
         chef = address(0xD1668fB5F690C59Ab4B0CAbAd0f8C1617895052B);
-        vm.createSelectFork({ blockNumber: 20_141_164, urlOrAlias: "mainnet" });
+        vm.createSelectFork({ urlOrAlias: "mainnet" });
         // Prank to chef
         vm.startPrank(chef);
         // Approve DAI to router
@@ -47,41 +47,58 @@ contract FooTest is Test {
         // Prank to chef
         vm.startPrank(chef);
 
-        address[] memory path = new address[](2);
-        path[0] = address(DAI);
-        path[1] = address(USDC);
-        uint256 amountInChef1 = 50_000_000_000_000_000_000;
-        uint256 amountInUser1 = 10_000_000_000_000_000_000;
+        address tokenA = address(DAI);
+        address tokenB = address(USDC);
+        uint256 amountInChef1 = 5_000_000_000_000_000_000_000_000;
+        uint256 amountInUser1 = 3_000_000_000_000_000_000_000_000;
 
         // Check amount out from DAI to USDC
-        (uint256[] memory amounts,) = router.getAmountsOut(amountInChef1, path);
+        (uint256[] memory amounts,) = router.getAmountsOut(amountInChef1, tokenA, tokenB);
+
+        // Save initial amount out
+        uint256 initialAmountOut = amounts[1];
 
         // Call swap function
-        (uint256[] memory returnAmounts,) = router.swap(path, amountInChef1, amounts[1]);
+        router.swap(tokenA, tokenB, amountInChef1, initialAmountOut);
 
+        // Send DAI to user
         DAI.transfer(user, amountInUser1);
 
         // Prank to user
         vm.startPrank(user);
 
         // Check amount out from DAI to USDC
-        (amounts,) = router.getAmountsOut(amountInUser1, path);
+        (amounts,) = router.getAmountsOut(amountInUser1, tokenA, tokenB);
 
         // Call swap function
-        router.swap(path, amountInUser1, amounts[1]);
+        router.swap(tokenA, tokenB, amountInUser1, amounts[1]);
 
         // Prank to chef
         vm.startPrank(chef);
-        path[1] = address(DAI);
-        path[0] = address(USDC);
 
         // Check amount out from USDC to DAI
-        (amounts,) = router.getAmountsOut(returnAmounts[1], path);
-        path[1] = address(DAI);
-        path[0] = address(USDC);
+        (amounts,) = router.getAmountsOut(initialAmountOut, tokenB, tokenA);
+
+        // Check DAI balance before swap
+        uint256 balanceBefore = DAI.balanceOf(chef);
+
+        // Check USDC balance before swap
+        uint256 balanceBeforeUSDC = USDC.balanceOf(chef);
 
         // Call buy function
-        router.buy(path, amounts[1], amounts[0]);
+        router.buy(tokenB, tokenA, amounts[1], amounts[0]);
+
+        // Check DAI balance after swap
+        uint256 balanceAfter = DAI.balanceOf(chef);
+
+        // Check USDC balance after swap
+        uint256 balanceAfterUSDC = USDC.balanceOf(chef);
+
+        // Make sure that the balance of DAI is increased more than amountInChef1
+        assert(balanceAfter > balanceBefore + amountInChef1);
+
+        // Make sure that the balance of USDC has decreased axactly initialAmountOut
+        assert(balanceBeforeUSDC - balanceAfterUSDC == initialAmountOut);
     }
 
     function test_sandwitch_buy_buy_sell() public { }
