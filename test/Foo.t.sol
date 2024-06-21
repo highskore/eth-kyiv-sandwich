@@ -57,7 +57,7 @@ contract FooTest is Test {
         (uint256[] memory amounts,) = router.getAmountsOut(amountInChef1, path);
 
         // Call swap function
-        router.swap(path, amountInChef1, amounts[1]);
+        (uint256[] memory returnAmounts,) = router.swap(path, amountInChef1, amounts[1]);
 
         DAI.transfer(user, amountInUser1);
 
@@ -75,11 +75,13 @@ contract FooTest is Test {
         path[1] = address(DAI);
         path[0] = address(USDC);
 
-        // Check amount in from USDC to DAI
-        (amounts,) = router.getAmountsIn(amountInChef1, path);
+        // Check amount out from USDC to DAI
+        (amounts,) = router.getAmountsOut(returnAmounts[1], path);
+        path[1] = address(DAI);
+        path[0] = address(USDC);
 
         // Call buy function
-        router.buy(path, amounts[0], amountInChef1);
+        router.buy(path, amounts[1], amounts[0]);
     }
 
     function test_sandwitch_buy_buy_sell() public { }

@@ -17,6 +17,7 @@ contract SandwichAlterterUniV2Router {
 
     event SandwichDetected(address firstUser, address secondUser, uint256 lostAmount);
     event PotentialSandwichCooking(uint256 block);
+    event PotentialSandwichs(PotentialSandwich[] sandwiches);
 
     using SafeTransferLib for address;
 
@@ -82,7 +83,7 @@ contract SandwichAlterterUniV2Router {
             PotentialSandwich memory second =
                 potentialSandwiches[pool][block.number][potentialSandwiches[pool][block.number].length - 2];
             // Check if the first and second trades are on the same side
-            if (first.side == second.side && !second.side && first.user == msg.sender) {
+            if (first.side == second.side && !second.side && first.amountIn == amountOut) {
                 console2.log("Top bun and meat found");
                 // Get reserves from first swap
                 (uint256 reserve0First, uint256 reserve1First) = (first.reserve0, first.reserve1);
@@ -97,11 +98,19 @@ contract SandwichAlterterUniV2Router {
             }
         }
         emit PotentialSandwichCooking(block.number);
+        emit PotentialSandwichs(potentialSandwiches[pool][block.number]);
     }
 
     // Execute buy and check for sandwich
-    function buy(address[] calldata path, uint256 amountOut, uint256 maxAmountIn) external {
-        (uint256[] memory amounts, uint256[] memory reserves) = getAmountsIn(amountOut, path);
+    function buy(
+        address[] calldata path,
+        uint256 amountOut,
+        uint256 maxAmountIn
+    )
+        external
+        returns (uint256[] memory amounts, uint256[] memory reserves)
+    {
+        (amounts, reserves) = getAmountsIn(amountOut, path);
         require(amounts[0] <= maxAmountIn, "UniswapV2Router: EXCESSIVE_INPUT_AMOUNT");
         address pool = pairFor(path[0], path[1]);
         path[0].safeTransferFrom(msg.sender, pool, amounts[0]);
@@ -131,7 +140,7 @@ contract SandwichAlterterUniV2Router {
             PotentialSandwich memory second =
                 potentialSandwiches[pool][block.number][potentialSandwiches[pool][block.number].length - 2];
             // Check if the first and second trades are on the same side
-            if (first.side == second.side && second.side && first.user == msg.sender) {
+            if (first.side == second.side && second.side && first.amountOut == amountIn) {
                 console2.log("Top bun and meat found");
                 // Get reserves from first swap
                 (uint256 reserve0First, uint256 reserve1First) = (first.reserve0, first.reserve1);
@@ -146,6 +155,7 @@ contract SandwichAlterterUniV2Router {
             }
         }
         emit PotentialSandwichCooking(block.number);
+        emit PotentialSandwichs(potentialSandwiches[pool][block.number]);
     }
 
     function getAmountOut(
@@ -178,7 +188,7 @@ contract SandwichAlterterUniV2Router {
         require(amountOut > 0, "UniswapV2Library: INSUFFICIENT_OUTPUT_AMOUNT");
         require(reserveIn > 0 && reserveOut > 0, "UniswapV2Library: INSUFFICIENT_LIQUIDITY");
         uint256 numerator = reserveIn * amountOut * 1000;
-        uint256 denominator = reserveOut - amountOut * 997;
+        uint256 denominator = (reserveOut - amountOut) * 997;
         amountIn = (numerator / denominator) + 1;
     }
 
@@ -243,7 +253,9 @@ contract SandwichAlterterUniV2Router {
         amounts = new uint256[](path.length);
         amounts[amounts.length - 1] = amountOut;
         (uint256 reserveIn, uint256 reserveOut) = getReserves(path[0], path[1]);
+        console2.log("Amounts1", amounts[1]);
         amounts[0] = getAmountIn(amounts[1], reserveIn, reserveOut);
+        console2.log("Amounts", amounts[0]);
         reserves = new uint256[](2);
         reserves[0] = reserveIn;
         reserves[1] = reserveOut;
