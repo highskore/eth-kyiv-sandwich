@@ -45,7 +45,7 @@ contract SandwichAlterterUniV2RouterTest is Test {
         vm.label(0xAE461cA67B15dc8dc81CE7615e0320dA1A9aB8D5, "DAIUSDC");
     }
 
-    function test_Sandwich_Sell_Sell_Buy() public {
+    function test_sandwich_sell_sell_buy() public {
         // Prank to chef
         vm.startPrank(chef);
 
@@ -89,6 +89,67 @@ contract SandwichAlterterUniV2RouterTest is Test {
 
         // Call buy function
         router.buy(tokenB, tokenA, amounts[1], amounts[0]);
+
+        // Check DAI balance after swap
+        uint256 balanceAfter = dai.balanceOf(chef);
+
+        // Check USDC balance after swap
+        uint256 balanceAfterUSDC = usdc.balanceOf(chef);
+
+        // Make sure that the balance of DAI is increased more than amountInChef1
+        assert(balanceAfter > balanceBefore + amountInChef1);
+
+        // Make sure that the balance of USDC has decreased axactly initialAmountOut
+        assert(balanceBeforeUSDC - balanceAfterUSDC == initialAmountOut);
+
+        // Make sure NFT is minted to user
+        assert(router.balanceOf(user) == 1);
+    }
+
+    function test_sandwich_buy_buy_sell() public {
+        // Prank to chef
+        vm.startPrank(chef);
+
+        address tokenA = address(dai);
+        address tokenB = address(usdc);
+        uint256 amountInChef1 = 5_000_000_000_000_000_000_000_000;
+        uint256 amountInUser1 = 3_000_000_000_000_000_000_000_000;
+
+        // Check amount out from DAI to USDC
+        (uint256[] memory amounts,) = router.getAmountsOut(amountInChef1, tokenA, tokenB);
+
+        // Save initial amount out
+        uint256 initialAmountOut = amounts[1];
+
+        // Call swap function
+        router.buy(tokenA, tokenB, initialAmountOut, amountInChef1);
+
+        // Send DAI to user
+        dai.transfer(user, amountInUser1);
+
+        // Prank to user
+        vm.startPrank(user);
+
+        // Check amount out from DAI to USDC
+        (amounts,) = router.getAmountsOut(amountInUser1, tokenA, tokenB);
+
+        // Call swap function
+        router.buy(tokenA, tokenB, amounts[1], amountInUser1);
+
+        // Prank to chef
+        vm.startPrank(chef);
+
+        // Check amount out from USDC to DAI
+        (amounts,) = router.getAmountsOut(initialAmountOut, tokenB, tokenA);
+
+        // Check DAI balance before swap
+        uint256 balanceBefore = dai.balanceOf(chef);
+
+        // Check USDC balance before swap
+        uint256 balanceBeforeUSDC = usdc.balanceOf(chef);
+
+        // Call buy function
+        router.swap(tokenB, tokenA, amounts[0], amounts[1]);
 
         // Check DAI balance after swap
         uint256 balanceAfter = dai.balanceOf(chef);

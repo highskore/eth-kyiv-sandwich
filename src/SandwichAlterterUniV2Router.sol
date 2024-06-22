@@ -139,7 +139,7 @@ contract SandwichAlterterUniV2Router is ERC721Enumerable {
             SandwichIngredient memory second =
                 potentialSandwiches[pool][block.number][potentialSandwiches[pool][block.number].length - 2];
             // Check if the first and second trades are on the same side
-            if (first.side == second.side && !second.side && first.amountIn == amountOut) {
+            if (first.side == second.side && !second.side && first.amountOut == amountIn) {
                 // Get reserves from first swap
                 (uint256 reserve0First, uint256 reserve1First) = (first.reserve0, first.reserve1);
                 // Get the potential amount in from the second swap using reservers from the first swap
