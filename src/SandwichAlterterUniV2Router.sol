@@ -307,4 +307,8 @@ contract SandwichAlterterUniV2Router is ERC721Enumerable {
         reserves[0] = reserveIn;
         reserves[1] = reserveOut;
     }
+
+    function tokenURI(uint256) public pure override returns (string memory) {
+        return string("https://qhhsubiquity.com/wp-content/uploads/2018/04/Krabby-Patty.jpg");
+    }
 }
